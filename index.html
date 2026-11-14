@@ -1,1 +1,843 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Norfolk Terminal Industry Directory</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'media',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom PWA and iOS Safe Area fixes */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .ios-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        /* Custom scrollbar for clean card list */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-full flex flex-col selection:bg-blue-500 selection:text-white">
 
+    <!-- Top Header Bar -->
+    <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 ios-blur border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
+                <i class="fa-solid fa-industry text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-tight tracking-tight">Norfolk Terminals</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Industry Directory & Status</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="triggerInstall()" id="installBtn" class="hidden text-xs bg-blue-600 text-white font-medium px-3 py-1.5 rounded-full shadow hover:bg-blue-700 transition">
+                <i class="fa-solid fa-download mr-1"></i> Install PWA
+            </button>
+            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                <i class="fa-solid fa-moon dark:fa-sun text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- PWA Install Banner (Dismissible) -->
+    <div id="pwaBanner" class="hidden bg-blue-600 text-white px-4 py-2.5 text-xs flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-mobile-screen-button text-base"></i>
+            <span>Add Norfolk Terminal Directory to your home screen for quick offline access.</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button onclick="triggerInstall()" class="bg-white text-blue-600 font-semibold px-2.5 py-1 rounded shadow text-xs">Install</button>
+            <button onclick="dismissInstallBanner()" class="text-blue-200 hover:text-white px-1"><i class="fa-solid fa-xmark text-sm"></i></button>
+        </div>
+    </div>
+
+    <!-- Main Container Area -->
+    <main class="flex-1 overflow-y-auto pb-24 max-w-4xl w-full mx-auto p-4">
+        
+        <!-- Tab 1: Directory View -->
+        <div id="tab-directory" class="space-y-4">
+            
+            <!-- Search and Filter Controls -->
+            <div class="space-y-2.5">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                    </span>
+                    <input type="text" id="searchInput" oninput="filterDirectory()" placeholder="Search by industry code, company, or zone (e.g., A10, Norfolk)..." 
+                        class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition">
+                </div>
+                
+                <div class="flex items-center justify-between text-xs overflow-x-auto pb-1 gap-2">
+                    <div class="flex items-center space-x-1.5 shrink-0">
+                        <button onclick="setFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-lg font-medium bg-blue-600 text-white shadow-sm transition">All (<span id="count-all">0</span>)</button>
+                        <button onclick="setFilter('yes')" id="filter-yes" class="filter-btn px-3 py-1.5 rounded-lg font-medium bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition">Active/Green (<span id="count-yes">0</span>)</button>
+                        <button onclick="setFilter('no')" id="filter-no" class="filter-btn px-3 py-1.5 rounded-lg font-medium bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition">Inactive/Red (<span id="count-no">0</span>)</button>
+                    </div>
+                    <div class="text-slate-400 shrink-0 hidden sm:block">
+                        <span id="resultCount">0</span> facilities found
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card List Container -->
+            <div id="directoryList" class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <!-- Dynamically populated via JavaScript -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden text-center py-16">
+                <div class="w-16 h-16 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-400 mb-3 text-xl">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h3 class="font-semibold text-base">No terminals found</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Try adjusting your search query or status filters.</p>
+            </div>
+        </div>
+
+        <!-- Tab 2: Map View -->
+        <div id="tab-map" class="hidden h-[calc(100vh-180px)] min-h-[450px] flex flex-col space-y-3">
+            <div class="flex items-center justify-between px-1">
+                <div>
+                    <h2 class="font-bold text-base">Hampton Roads Terminals Map</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Tap any marker to view facility information</p>
+                </div>
+                <button onclick="resetMapView()" class="text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50">
+                    <i class="fa-solid fa-location-crosshairs mr-1"></i> Reset View
+                </button>
+            </div>
+            <div class="flex-1 w-full bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow border border-slate-200 dark:border-slate-700 relative z-10">
+                <div id="leafletMap" class="w-full h-full"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Info & Quick Guide -->
+        <div id="tab-info" class="hidden space-y-4">
+            <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl font-bold">
+                        <i class="fa-solid fa-circle-info"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-base">About Norfolk Terminal Directory</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">PWA Version 2.6 • Offline Enabled</p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    This progressive web application provides field operators, dispatchers, and drivers with immediate access to industrial facility codes, operating hours, track/zone assignments, audit dates, and direct contact numbers across the Norfolk, Chesapeake, and Hampton Roads shipping terminals.
+                </p>
+                
+                <div class="border-t border-slate-100 dark:border-slate-700 pt-3 space-y-2">
+                    <h3 class="font-semibold text-xs uppercase tracking-wider text-slate-400">Quick Features</h3>
+                    <ul class="text-xs space-y-2 text-slate-600 dark:text-slate-300">
+                        <li class="flex items-center space-x-2">
+                            <i class="fa-solid fa-check text-green-500"></i>
+                            <span>Instant searching by Code, Company, or Zone</span>
+                        </li>
+                        <li class="flex items-center space-x-2">
+                            <i class="fa-solid fa-check text-green-500"></i>
+                            <span>Interactive Leaflet Map with GPS facility pins</span>
+                        </li>
+                        <li class="flex items-center space-x-2">
+                            <i class="fa-solid fa-check text-green-500"></i>
+                            <span>Direct telephone dialing and clipboard sharing</span>
+                        </li>
+                        <li class="flex items-center space-x-2">
+                            <i class="fa-solid fa-check text-green-500"></i>
+                            <span>Offline-ready caching via local storage</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="border-t border-slate-100 dark:border-slate-700 pt-3 flex justify-between items-center text-xs text-slate-500">
+                    <span>Data Source: Terminal Master Chart</span>
+                    <button onclick="exportData()" class="text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+                        <i class="fa-solid fa-file-arrow-down mr-1"></i> Export JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation Bar (iOS / Android PWA Style) -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-slate-900/90 ios-blur border-t border-slate-200 dark:border-slate-800 px-6 py-2 flex justify-around items-center shadow-lg">
+        <button onclick="switchTab('directory')" id="nav-directory" class="flex flex-col items-center space-y-1 text-blue-600 dark:text-blue-400 transition">
+            <i class="fa-solid fa-address-book text-lg"></i>
+            <span class="text-[10px] font-medium">Directory</span>
+        </button>
+        <button onclick="switchTab('map')" id="nav-map" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
+            <i class="fa-solid fa-map-location-dot text-lg"></i>
+            <span class="text-[10px] font-medium">Map View</span>
+        </button>
+        <button onclick="switchTab('info')" id="nav-info" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
+            <i class="fa-solid fa-circle-info text-lg"></i>
+            <span class="text-[10px] font-medium">Info</span>
+        </button>
+    </nav>
+
+    <!-- Detail View Modal / Slide-over Drawer -->
+    <div id="detailModal" class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all opacity-0">
+        <div id="modalContent" class="bg-white dark:bg-slate-900 w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto transform translate-y-full sm:translate-y-0 transition-transform duration-300 flex flex-col">
+            
+            <!-- Modal Header with drag handle for mobile -->
+            <div class="sticky top-0 bg-white/90 dark:bg-slate-900/90 ios-blur px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between z-10">
+                <div class="flex items-center space-x-2">
+                    <span id="modalCodeBadge" class="text-xs font-bold px-2.5 py-1 rounded-lg"></span>
+                    <span id="modalStatusBadge" class="text-xs font-semibold px-2 py-0.5 rounded-full"></span>
+                </div>
+                <button onclick="closeDetailModal()" class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body Content -->
+            <div class="p-5 space-y-4">
+                <div>
+                    <h2 id="modalCompanyName" class="text-xl font-bold text-slate-900 dark:text-white leading-snug"></h2>
+                    <p id="modalAddress" class="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center">
+                        <i class="fa-solid fa-location-dot mr-1.5 text-blue-500"></i> <span></span>
+                    </p>
+                </div>
+
+                <!-- Mini Leaflet Map in Modal -->
+                <div class="h-48 w-full rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 relative">
+                    <div id="modalMap" class="w-full h-full"></div>
+                </div>
+
+                <!-- Quick Action Buttons -->
+                <div class="grid grid-cols-3 gap-2">
+                    <a id="modalCallBtn" href="#" class="flex flex-col items-center justify-center p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl font-medium text-xs hover:bg-blue-100 transition">
+                        <i class="fa-solid fa-phone text-base mb-1"></i>
+                        <span>Call</span>
+                    </a>
+                    <a id="modalNavBtn" href="#" target="_blank" class="flex flex-col items-center justify-center p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl font-medium text-xs hover:bg-emerald-100 transition">
+                        <i class="fa-solid fa-diamond-turn-right text-base mb-1"></i>
+                        <span>Directions</span>
+                    </a>
+                    <button onclick="copyFacilityDetails()" class="flex flex-col items-center justify-center p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-medium text-xs hover:bg-slate-200 transition">
+                        <i class="fa-solid fa-copy text-base mb-1"></i>
+                        <span>Copy Info</span>
+                    </button>
+                </div>
+
+                <!-- Details Grid -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <span class="text-slate-400 block mb-0.5">Operating Hours</span>
+                        <span id="modalHours" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-0.5">Track / Zone</span>
+                        <span id="modalTrack" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-0.5">Audit Date</span>
+                        <span id="modalAudit" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-0.5">Direct Phone</span>
+                        <span id="modalPhone" class="font-semibold text-slate-800 dark:text-slate-200"></span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-400">
+                Norfolk Terminal Industry Directory &bull; Tap outside to close
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2 rounded-xl shadow-xl text-xs flex items-center space-x-2 transition-all opacity-0 pointer-events-none">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMsg">Action completed successfully</span>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Full Dataset extracted from the master chart and location records
+        const terminalsData = [
+            {
+                code: "A10",
+                company: "PLASSER AMERICAN",
+                open: "07:30:00",
+                close: "19:30:00",
+                track: "NV02",
+                audit: "7/22/2026",
+                status: "YES",
+                address: "2428 Josef Theurer Lane, Chesapeake, VA",
+                phone: "757-543-3526",
+                lat: 36.7865,
+                lng: -76.2870
+            },
+            {
+                code: "A11",
+                company: "GORDON PAPER",
+                open: "NA",
+                close: "NA",
+                track: "NV02",
+                audit: "9/16/2026",
+                status: "YES",
+                address: "5713 Ward Ave, Virginia Beach, VA",
+                phone: "757-464-3581",
+                lat: 36.8525,
+                lng: -76.1540
+            },
+            {
+                code: "A14",
+                company: "NS THOROUGHBRED BULK TERMINAL",
+                open: "15:00:00",
+                close: "03:00:00",
+                track: "NV22",
+                audit: "5/27/2026",
+                status: "YES",
+                address: "1305 Atlantic Ave, Chesapeake, VA",
+                phone: "517-908-3647",
+                lat: 36.8310,
+                lng: -76.2890
+            },
+            {
+                code: "A24",
+                company: "SEAWARD MARINE CORPORATION (In KTN)",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "N/A",
+                status: "NO",
+                address: "1969 Allan St, Norfolk, VA",
+                phone: "757-545-0555",
+                lat: 36.8200,
+                lng: -76.2900
+            },
+            {
+                code: "A25",
+                company: "KTN NORFOLK",
+                open: "07:30:00",
+                close: "19:30:00",
+                track: "NV02",
+                audit: "8/19/2026",
+                status: "YES",
+                address: "Lamberts Point, Norfolk, VA",
+                phone: "757-275-5309",
+                lat: 36.8710,
+                lng: -76.3150
+            },
+            {
+                code: "A41",
+                company: "COMMONWEALTH BUILDING MATERIALS INC",
+                open: "07:15:00",
+                close: "19:15:00",
+                track: "NV01",
+                audit: "8/19/2026",
+                status: "YES",
+                address: "2400 Diamond Springs Rd, Virginia Beach, VA",
+                phone: "757-463-1000",
+                lat: 36.8650,
+                lng: -76.1850
+            },
+            {
+                code: "A50",
+                company: "INTERNATIONAL MATEX TANK TERMINAL",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "N/A",
+                status: "NO",
+                address: "IMTT Chesapeake, VA",
+                phone: "757-543-2000",
+                lat: 36.8120,
+                lng: -76.3050
+            },
+            {
+                code: "A55",
+                company: "NGLEP CHESAPEAKE TERMINAL",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "6/23/2026",
+                status: "YES",
+                address: "Chesapeake, VA",
+                phone: "757-275-5309",
+                lat: 36.8150,
+                lng: -76.2950
+            },
+            {
+                code: "B13",
+                company: "KINDER MORGAN (1000 Lansing St, Norfolk)",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "N/A",
+                status: "NO",
+                address: "1000 Lansing St, Norfolk, VA",
+                phone: "757-627-6200",
+                lat: 36.8450,
+                lng: -76.2750
+            },
+            {
+                code: "B41",
+                company: "BATCHELDER & COLLINS",
+                open: "15:00:00",
+                close: "03:00:00",
+                track: "NV22",
+                audit: "N/A",
+                status: "NO",
+                address: "2205 Granby St, Norfolk, VA",
+                phone: "757-622-6525",
+                lat: 36.8580,
+                lng: -76.2820
+            },
+            {
+                code: "D0250",
+                company: "KINDER MORGAN",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "9/16/2026",
+                status: "YES",
+                address: "Norfolk Terminal, Norfolk, VA",
+                phone: "757-627-6200",
+                lat: 36.8450,
+                lng: -76.2750
+            },
+            {
+                code: "D18",
+                company: "KEMPSVILLE BUILDING MATERIALS",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "10/21/2026",
+                status: "YES",
+                address: "301 Mia Dr, Norfolk, VA",
+                phone: "757-461-1234",
+                lat: 36.8400,
+                lng: -76.2200
+            },
+            {
+                code: "D26",
+                company: "AMERICOLD LOGISTICS",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "N/A",
+                status: "NO",
+                address: "3233 East Princess Anne Rd, Norfolk, VA",
+                phone: "757-857-1231",
+                lat: 36.8620,
+                lng: -76.2450
+            },
+            {
+                code: "D30",
+                company: "CONTINENTAL TERMINALS",
+                open: "06:30:00",
+                close: "18:30:00",
+                track: "NV03",
+                audit: "N/A",
+                status: "NO",
+                address: "Norfolk, VA",
+                phone: "757-625-0000",
+                lat: 36.8500,
+                lng: -76.2700
+            },
+            {
+                code: "E06",
+                company: "GEMSA OIL",
+                open: "16:00:00",
+                close: "04:00:00",
+                track: "NV23",
+                audit: "7/22/2026",
+                status: "YES",
+                address: "Chesapeake, VA",
+                phone: "757-543-0000",
+                lat: 36.8100,
+                lng: -76.2800
+            },
+            {
+                code: "E10",
+                company: "MIL-SPEC ABRASIVES LLC",
+                open: "16:00:00",
+                close: "04:00:00",
+                track: "NV23",
+                audit: "N/A",
+                status: "NO",
+                address: "Chesapeake, VA",
+                phone: "757-545-0000",
+                lat: 36.8050,
+                lng: -76.2750
+            },
+            {
+                code: "E13",
+                company: "VULCAN CONSTRUCTION MATERIALS LLC",
+                open: "18:00:00",
+                close: "06:00:00",
+                track: "V13",
+                audit: "10/21/2026",
+                status: "YES",
+                address: "Norfolk, VA",
+                phone: "757-855-0000",
+                lat: 36.8480,
+                lng: -76.2300
+            },
+            {
+                code: "E95",
+                company: "VIRGINIA INLAND PORT",
+                open: "15:30:00",
+                close: "03:30:00",
+                track: "NV01",
+                audit: "3/18/2026",
+                status: "YES",
+                address: "Front Royal / Norfolk Terminal, VA",
+                phone: "540-636-3000",
+                lat: 38.9200,
+                lng: -78.1900
+            }
+        ];
+
+        let currentFilter = 'all';
+        let currentTab = 'directory';
+        let mainMap = null;
+        let modalMap = null;
+        let modalMapMarker = null;
+        let deferredInstallPrompt = null;
+        let activeFacility = null;
+
+        // Initialize App on DOM Content Loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDirectory(terminalsData);
+            updateCounters();
+            
+            // PWA Install Prompt Listener
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredInstallPrompt = e;
+                document.getElementById('pwaBanner').classList.remove('hidden');
+                document.getElementById('installBtn').classList.remove('hidden');
+            });
+        });
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            currentTab = tabId;
+            ['directory', 'map', 'info'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).classList.remove('text-blue-600', 'dark:text-blue-400');
+                document.getElementById(`nav-${t}`).classList.add('text-slate-400');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`nav-${tabId}`).classList.remove('text-slate-400');
+            document.getElementById(`nav-${tabId}`).classList.add('text-blue-600', 'dark:text-blue-400');
+
+            if (tabId === 'map') {
+                setTimeout(() => {
+                    initMainMap();
+                }, 150);
+            }
+        }
+
+        // Render Directory Cards
+        function renderDirectory(data) {
+            const listEl = document.getElementById('directoryList');
+            const emptyEl = document.getElementById('emptyState');
+            listEl.innerHTML = '';
+
+            document.getElementById('resultCount').innerText = data.length;
+
+            if (data.length === 0) {
+                emptyEl.classList.remove('hidden');
+                return;
+            } else {
+                emptyEl.classList.add('hidden');
+            }
+
+            data.forEach(item => {
+                const isActive = item.status === 'YES';
+                const statusBg = isActive ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 border-rose-500/20';
+                const cardBorder = isActive ? 'border-emerald-500/30 dark:border-emerald-900/40' : 'border-rose-500/30 dark:border-rose-900/40';
+
+                const card = document.createElement('div');
+                card.className = `bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border ${cardBorder} hover:shadow-md transition cursor-pointer flex flex-col justify-between`;
+                card.onclick = () => openDetailModal(item);
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-mono font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                ${item.code}
+                            </span>
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full border ${statusBg}">
+                                ${isActive ? 'Active (YES)' : 'Inactive (NO)'}
+                            </span>
+                        </div>
+                        <h3 class="font-bold text-sm text-slate-900 dark:text-white line-clamp-1">${item.company}</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center">
+                            <i class="fa-solid fa-location-dot mr-1 text-slate-400"></i> ${item.address}
+                        </p>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-3 gap-2 text-[11px]">
+                        <div>
+                            <span class="text-slate-400 block">Hours</span>
+                            <span class="font-medium text-slate-700 dark:text-slate-300">${item.open}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block">Zone / Track</span>
+                            <span class="font-medium font-mono text-slate-700 dark:text-slate-300">${item.track}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block">Audit Date</span>
+                            <span class="font-medium text-slate-700 dark:text-slate-300">${item.audit}</span>
+                        </div>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        // Filter and Search logic
+        function filterDirectory() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            
+            const filtered = terminalsData.filter(item => {
+                const matchesSearch = item.code.toLowerCase().includes(query) || 
+                                      item.company.toLowerCase().includes(query) || 
+                                      item.track.toLowerCase().includes(query) ||
+                                      item.address.toLowerCase().includes(query);
+                
+                if (currentFilter === 'yes') return matchesSearch && item.status === 'YES';
+                if (currentFilter === 'no') return matchesSearch && item.status === 'NO';
+                return matchesSearch;
+            });
+
+            renderDirectory(filtered);
+        }
+
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            ['all', 'yes', 'no'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (f === filterType) {
+                    btn.className = "filter-btn px-3 py-1.5 rounded-lg font-medium bg-blue-600 text-white shadow-sm transition";
+                } else {
+                    btn.className = "filter-btn px-3 py-1.5 rounded-lg font-medium bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition";
+                }
+            });
+            filterDirectory();
+        }
+
+        function updateCounters() {
+            document.getElementById('count-all').innerText = terminalsData.length;
+            document.getElementById('count-yes').innerText = terminalsData.filter(i => i.status === 'YES').length;
+            document.getElementById('count-no').innerText = terminalsData.filter(i => i.status === 'NO').length;
+        }
+
+        // Detail Modal Handling
+        function openDetailModal(item) {
+            activeFacility = item;
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('modalContent');
+
+            document.getElementById('modalCodeBadge').innerText = item.code;
+            document.getElementById('modalCompanyName').innerText = item.company;
+            document.getElementById('modalAddress').querySelector('span').innerText = item.address;
+            document.getElementById('modalHours').innerText = `${item.open} - ${item.close}`;
+            document.getElementById('modalTrack').innerText = item.track;
+            document.getElementById('modalAudit').innerText = item.audit;
+            document.getElementById('modalPhone').innerText = item.phone;
+
+            const statusBadge = document.getElementById('modalStatusBadge');
+            if (item.status === 'YES') {
+                statusBadge.className = "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20";
+                statusBadge.innerText = "Active (YES)";
+            } else {
+                statusBadge.className = "text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20";
+                statusBadge.innerText = "Inactive (NO)";
+            }
+
+            document.getElementById('modalCallBtn').href = `tel:${item.phone}`;
+            document.getElementById('modalNavBtn').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.company + ' ' + item.address)}`;
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('translate-y-full');
+            }, 10);
+
+            // Initialize or update modal map
+            setTimeout(() => {
+                initModalMap(item.lat, item.lng, item.company);
+            }, 250);
+        }
+
+        function closeDetailModal() {
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('modalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('translate-y-full');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Leaflet Map Integrations
+        function initMainMap() {
+            if (!mainMap) {
+                // Centered around Hampton Roads / Norfolk area
+                mainMap = L.map('leafletMap').setView([36.8500, -76.2850], 11);
+                
+                // Add tile layer (OpenStreetMap)
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(mainMap);
+
+                // Add markers for all terminals
+                terminalsData.forEach(item => {
+                    const markerColor = item.status === 'YES' ? '#10b981' : '#f43f5e';
+                    const customIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="background-color: ${markerColor}; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); border: 2px solid white;">${item.code}</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    const marker = L.marker([item.lat, item.lng], { icon: customIcon }).addTo(mainMap);
+                    marker.bindPopup(`
+                        <div style="font-family: 'Inter', sans-serif; padding: 4px;">
+                            <span style="font-size: 10px; font-weight: bold; background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px;">${item.code}</span>
+                            <h4 style="font-weight: bold; font-size: 13px; margin: 4px 0 2px 0;">${item.company}</h4>
+                            <p style="font-size: 11px; color: #64748b; margin-bottom: 6px;">${item.address}</p>
+                            <button onclick='openDetailModal(${JSON.stringify(item)})' style="background: #2563eb; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">View Details</button>
+                        </div>
+                    `);
+                });
+            } else {
+                mainMap.invalidateSize();
+            }
+        }
+
+        function initModalMap(lat, lng, title) {
+            if (!modalMap) {
+                modalMap = L.map('modalMap', { zoomControl: false, attributionControl: false }).setView([lat, lng], 14);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19
+                }).addTo(modalMap);
+
+                modalMapMarker = L.marker([lat, lng]).addTo(modalMap);
+            } else {
+                modalMap.setView([lat, lng], 14);
+                modalMapMarker.setLatLng([lat, lng]);
+                modalMap.invalidateSize();
+            }
+        }
+
+        function resetMapView() {
+            if (mainMap) {
+                mainMap.setView([36.8500, -76.2850], 11);
+            }
+        }
+
+        // Utilities & Actions
+        function copyFacilityDetails() {
+            if (!activeFacility) return;
+            const text = `Facility Code: ${activeFacility.code}\nCompany: ${activeFacility.company}\nAddress: ${activeFacility.address}\nHours: ${activeFacility.open} - ${activeFacility.close}\nTrack: ${activeFacility.track}\nPhone: ${activeFacility.phone}`;
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Facility details copied to clipboard!");
+            } catch (err) {
+                showToast("Failed to copy details");
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+        function triggerInstall() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                deferredInstallPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    }
+                    deferredInstallPrompt = null;
+                    document.getElementById('pwaBanner').classList.add('hidden');
+                });
+            } else {
+                showToast("To install, use browser menu and select 'Add to Home Screen'.");
+            }
+        }
+
+        function dismissInstallBanner() {
+            document.getElementById('pwaBanner').classList.add('hidden');
+        }
+
+        function toggleDarkMode() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(terminalsData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "norfolk_terminal_directory.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast("Directory exported as JSON successfully!");
+        }
+    </script>
+</body>
+</html>
